@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ציר 60 — מפת השילוט</title>
+<meta name="description" content="מפה אינטראקטיבית — תחקיר המקום הכי חם בגיהנום על מונופול השילוט בציר 60">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+@font-face {
+  font-family: 'Next Exit';
+  src: url('fonts/NextExitBold.otf') format('opentype');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Next Exit';
+  src: url('fonts/NextExitRegular.otf') format('opentype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Next Exit';
+  src: url('fonts/NextExitLight.otf') format('opentype');
+  font-weight: 300;
+  font-display: swap;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: 'Next Exit', 'Arial Hebrew', Arial, sans-serif;
+  background: #141413;
+  color: #faf9f5;
+  overflow: hidden;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: relative;
+}
+
+.page-header {
+  flex-shrink: 0;
+  background: #0a0a0a;
+  border-bottom: 2px solid #f70d28;
+  padding: 18px 28px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  justify-content: space-between;
+}
+.page-header-inner { flex: 1; min-width: 0; }
+.page-title { font-size: 26px; font-weight: 700; color: #faf9f5; line-height: 1.1; margin: 4px 0 6px; }
+.page-subtitle { font-size: 13px; line-height: 1.55; color: #cfc8bc; font-weight: 300; max-width: 720px; }
+.page-header .brand {
+  font-size: 11px; letter-spacing: 1.5px; color: #f5c842; font-weight: 700;
+  text-transform: uppercase; white-space: nowrap; padding-top: 6px;
+}
+
+/* מצב הטמעה — iframe בתוך דף כתבה */
+body.embedded .app { height: 100%; }
+body.embedded .page-header { padding: 12px 18px 10px; }
+body.embedded .page-title { font-size: 20px; }
+body.embedded .page-subtitle { font-size: 12px; }
+body.embedded .page-header .brand { display: none; }
+@media (max-width: 700px) {
+  .page-header { padding: 12px 16px; flex-direction: column; gap: 6px; }
+  .page-header .brand { display: none; }
+  .page-title { font-size: 19px; }
+  .page-subtitle { font-size: 12px; }
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+  background: #141413;
+}
+
+.leaflet-container { background: #faf9f5; font-family: inherit; }
+
+.wb-raised { filter: drop-shadow(-3px 4px 0 rgba(20,20,19,0.35)) drop-shadow(0 2px 6px rgba(20,20,19,0.25)); }
+
+.leaflet-popup-content-wrapper {
+  background: #0a0a0a !important;
+  color: #faf9f5 !important;
+  border-radius: 0 !important;
+  border-right: 3px solid #f5c842 !important;
+  padding: 0 !important;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.45) !important;
+  font-family: 'Next Exit', 'Arial Hebrew', Arial, sans-serif !important;
+}
+.leaflet-popup-content { margin: 0 !important; width: 320px !important; max-height: 70vh; overflow-y: auto; }
+.leaflet-popup-tip { background: #0a0a0a !important; }
+.leaflet-popup-close-button {
+  color: #cfc8bc !important;
+  font-size: 22px !important;
+  padding: 6px 10px !important;
+  left: 6px !important; right: auto !important;
+}
+.leaflet-popup-close-button:hover { color: #f5c842 !important; }
+
+.popup-card { direction: rtl; }
+.popup-card .pc-image { width: 100%; aspect-ratio: 16/10; background: #141413 center/cover no-repeat; display: block; }
+.popup-card .pc-image-ph {
+  aspect-ratio: 16/10;
+  background: repeating-linear-gradient(45deg,#141413,#141413 8px,#1a1a18 8px,#1a1a18 16px);
+  display: flex; align-items: center; justify-content: center;
+  color: #6a5f54; font-size: 11px; font-weight: 700; letter-spacing: 1px;
+}
+.popup-card .pc-body { padding: 12px 14px 14px; }
+.popup-card .pc-kicker {
+  font-size: 9px; font-weight: 700; letter-spacing: 1.5px;
+  color: #f5c842; text-transform: uppercase; margin-bottom: 4px;
+}
+.popup-card .pc-title { font-size: 18px; font-weight: 700; line-height: 1.15; margin-bottom: 6px; color: #faf9f5; }
+.popup-card .pc-caption { font-size: 11px; color: #f5c842; letter-spacing: 0.5px; font-weight: 700; margin-bottom: 8px; }
+.popup-card .pc-text { font-size: 12.5px; line-height: 1.6; color: #cfc8bc; margin-bottom: 8px; font-weight: 400; }
+.popup-card .pc-text.ph { color: #6a5f54; font-style: italic; }
+.popup-card .pc-credit { font-size: 10.5px; color: #6a5f54; font-style: italic; margin-top: 8px; padding-top: 8px; border-top: 1px solid #2a2a28; }
+.popup-card .pc-more {
+  display: inline-block;
+  font-size: 10px; font-weight: 700; letter-spacing: 1px;
+  color: #f5c842; text-decoration: none; cursor: pointer;
+  border-bottom: 1px solid #f5c842; padding-bottom: 1px;
+}
+.popup-card .pc-more:hover { color: #faf9f5; border-color: #faf9f5; }
+.leaflet-control-attribution {
+  background: rgba(250,249,245,0.9) !important;
+  color: #6a5f54 !important;
+  font-size: 10px;
+}
+.leaflet-control-attribution a { color: #141413 !important; }
+.leaflet-control-zoom a {
+  background: #faf9f5 !important;
+  color: #141413 !important;
+  border: 1px solid #cfc8bc !important;
+}
+.leaflet-control-zoom a:hover { background: #f70d28 !important; color: #faf9f5 !important; }
+
+.tzir-marker {
+  width: 18px; height: 18px;
+  background: #f5c842;
+  border: 2px solid #141413;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 0 0 rgba(245,200,66,0.7);
+  animation: pulse 2.4s infinite;
+  transition: transform 0.15s ease;
+}
+.tzir-marker.documented {
+  background: #0f2a44;
+  border-color: #faf9f5;
+  animation: none;
+}
+.tzir-marker.active {
+  transform: scale(1.4);
+  box-shadow: 0 0 0 8px rgba(15,42,68,0.35);
+  animation: none;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(245,200,66,0.7); }
+  70% { box-shadow: 0 0 0 14px rgba(245,200,66,0); }
+  100% { box-shadow: 0 0 0 0 rgba(245,200,66,0); }
+}
+
+.tzir-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #141413;
+  font-size: 11px;
+  font-weight: 700;
+  text-shadow: 0 0 4px #faf9f5, 0 0 4px #faf9f5, 0 0 2px #faf9f5, 0 0 6px #faf9f5;
+  white-space: nowrap;
+  margin-right: 14px !important;
+  pointer-events: none;
+}
+
+.leaflet-tooltip.tzir-label:before { display: none; }
+
+.wb-legend {
+  background: rgba(250,249,245,0.95);
+  padding: 10px 14px;
+  border-right: 3px solid #f70d28;
+  font-size: 11.5px;
+  color: #141413;
+  font-weight: 400;
+  line-height: 1.5;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  max-width: 220px;
+  max-height: 75vh;
+  overflow-y: auto;
+}
+.wb-legend strong { display: block; font-size: 10.5px; letter-spacing: 1px; color: #9e8e7c; margin-bottom: 4px; text-transform: uppercase; font-weight: 700; }
+.wb-legend .row { display: flex; align-items: center; gap: 8px; }
+.wb-legend .swatch {
+  display: inline-block;
+  width: 18px;
+  height: 12px;
+  flex-shrink: 0;
+}
+.wb-legend .swatch.wb { background: #b87858; border: 1.5px solid #5a3522; }
+.wb-legend .swatch.il { background: #faf9f5; border: 1px solid #cfc8bc; }
+.wb-legend .swatch.point { width: 12px; height: 12px; border-radius: 50%; background: #f5c842; border: 2px solid #141413; }
+.wb-legend .swatch.point-doc { background: #0f2a44; border-color: #faf9f5; box-shadow: 0 0 0 1px #141413; }
+
+/* פאנל שכבות + שקיפות */
+.layer-panel {
+  background: rgba(250,249,245,0.95);
+  padding: 12px 14px;
+  border-right: 3px solid #f70d28;
+  font-size: 12px;
+  color: #141413;
+  font-weight: 400;
+  line-height: 1.5;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  min-width: 180px;
+}
+.layer-panel strong { display: block; font-size: 11px; letter-spacing: 1px; color: #9e8e7c; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; }
+.layer-panel label { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 3px 0; }
+.layer-panel label:hover { color: #f70d28; }
+.layer-panel input[type=checkbox] { accent-color: #f70d28; cursor: pointer; }
+.layer-panel .swatch { display: inline-block; width: 14px; height: 10px; flex-shrink: 0; border: 1px solid rgba(20,20,19,0.3); }
+.layer-panel hr { border: 0; border-top: 1px solid #cfc8bc; margin: 10px 0 8px; }
+.layer-panel .opacity-row { display: flex; flex-direction: column; gap: 4px; }
+.layer-panel .opacity-row .opacity-head { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #6a5f54; font-weight: 700; letter-spacing: 0.5px; }
+.layer-panel input[type=range] { width: 100%; accent-color: #f70d28; cursor: pointer; }
+.tzir-council-label { background: #141413; color: #faf9f5; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.3); padding: 3px 8px; font-size: 11px; font-weight: 700; }
+.tzir-council-label:before { display: none; }
+
+.sidebar {
+  background: #0a0a0a;
+  border-right: 2px solid #f70d28;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  padding: 24px 24px 20px;
+  border-bottom: 1px solid #2a2a28;
+  background: #141413;
+}
+
+.tag {
+  display: inline-block;
+  background: #f70d28;
+  color: #faf9f5;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.sidebar-title {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #faf9f5;
+  margin-bottom: 8px;
+}
+
+.sidebar-subtitle {
+  font-size: 14px;
+  font-weight: 300;
+  color: #cfc8bc;
+  line-height: 1.5;
+}
+
+.brand {
+  font-size: 10px;
+  color: #9e8e7c;
+  letter-spacing: 1px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #2a2a28;
+  text-transform: uppercase;
+}
+
+.sidebar-body { flex: 1; padding: 24px; }
+
+.empty-state {
+  text-align: center;
+  color: #9e8e7c;
+  padding: 40px 20px;
+  font-weight: 300;
+  line-height: 1.7;
+}
+.empty-state strong { color: #cfc8bc; font-weight: 700; display: block; margin-bottom: 8px; font-size: 15px; }
+.empty-state .hint { font-size: 12px; margin-top: 16px; color: #6a5f54; }
+
+.point-detail { animation: fadeIn 0.25s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.point-detail .kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #f70d28;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.point-detail h2 {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-bottom: 16px;
+}
+
+.point-detail .meta {
+  font-size: 12px;
+  color: #9e8e7c;
+  margin-bottom: 20px;
+  font-family: 'Courier New', monospace;
+  direction: ltr;
+  text-align: right;
+}
+
+.point-detail .image-wrap {
+  margin: 0 -24px 20px;
+  background: #141413;
+}
+.point-detail .image-wrap img { width: 100%; display: block; }
+.point-detail .image-placeholder {
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: repeating-linear-gradient(45deg, #141413, #141413 10px, #1a1a18 10px, #1a1a18 20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6a5f54;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.point-detail .caption {
+  font-size: 11px;
+  color: #9e8e7c;
+  padding: 0 24px;
+  margin: -12px 0 20px;
+  font-weight: 300;
+}
+
+.point-detail .body {
+  font-size: 15px;
+  line-height: 1.75;
+  color: #cfc8bc;
+  font-weight: 400;
+}
+.point-detail .body p { margin-bottom: 14px; }
+.point-detail .body .placeholder-text {
+  color: #6a5f54;
+  font-style: italic;
+  padding: 14px;
+  border-right: 3px solid #f70d28;
+  background: #141413;
+}
+
+.point-detail .credit {
+  font-size: 10px;
+  color: #9e8e7c;
+  letter-spacing: 1px;
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid #2a2a28;
+  font-weight: 300;
+}
+
+.points-list { padding: 0 24px 24px; }
+.points-list h3 {
+  font-size: 11px;
+  color: #9e8e7c;
+  letter-spacing: 1.5px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+.points-list ul { list-style: none; }
+.points-list li {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #cfc8bc;
+  cursor: pointer;
+  border-right: 2px solid transparent;
+  transition: all 0.15s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.points-list li:hover { background: #141413; border-right-color: #f70d28; color: #faf9f5; }
+.points-list li.active { background: #141413; border-right-color: #f70d28; color: #faf9f5; font-weight: 700; }
+.points-list li .status { font-size: 9px; color: #6a5f54; letter-spacing: 0.5px; }
+.points-list li.has-content .status { color: #0f2a44; background: #f5c842; padding: 2px 6px; border-radius: 2px; }
+
+.gallery { margin-top: 22px; padding-top: 18px; border-top: 1px solid #2a2a28; }
+.gallery h4 { font-size: 11px; color: #9e8e7c; letter-spacing: 1.5px; margin-bottom: 10px; text-transform: uppercase; font-weight: 700; }
+.gallery p.hint { font-size: 11px; color: #6a5f54; margin-bottom: 12px; font-weight: 300; line-height: 1.5; }
+.gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.gallery-grid a {
+  display: block;
+  aspect-ratio: 1;
+  background: #141413 center/cover no-repeat;
+  border: 1px solid #2a2a28;
+  cursor: zoom-in;
+  transition: border-color 0.15s, transform 0.15s;
+  position: relative;
+}
+.gallery-grid a:hover { border-color: #f5c842; transform: scale(1.04); z-index: 2; }
+.gallery-grid a .fname {
+  position: absolute; inset: auto 0 0 0;
+  background: rgba(10,10,10,0.85);
+  color: #cfc8bc;
+  font-size: 9px;
+  padding: 2px 4px;
+  text-align: center;
+  direction: ltr;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.gallery-grid a:hover .fname { opacity: 1; }
+
+/* Lightbox */
+.lightbox {
+  position: fixed; inset: 0;
+  background: rgba(10,10,10,0.92);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  cursor: zoom-out;
+}
+.lightbox.open { display: flex; }
+.lightbox img { max-width: 92vw; max-height: 92vh; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
+.lightbox .lb-fname {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: #141413; color: #cfc8bc; padding: 6px 14px; font-size: 11px; direction: ltr; border-right: 3px solid #f5c842;
+}
+
+.back-btn {
+  background: none;
+  border: 1px solid #2a2a28;
+  color: #cfc8bc;
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 16px;
+  letter-spacing: 0.5px;
+}
+.back-btn:hover { border-color: #f70d28; color: #f70d28; }
+
+@media (max-width: 800px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 45vh 55vh; }
+  .sidebar { border-right: none; border-top: 2px solid #f70d28; }
+  .sidebar-title { font-size: 20px; }
+  .point-detail h2 { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="page-header">
+    <div class="page-header-inner">
+      <span class="tag">תחקיר</span>
+      <h1 class="page-title">ציר 60: מונופול השילוט</h1>
+      <p class="page-subtitle">החתן של אורית סטרוק מנהל מונופול שילוט גזעני בשטחי יהודה ושומרון. זו המפה של כל נקודות השילוט. לחצו על כל נקודה לצפייה בתיעוד.</p>
+    </div>
+    <div class="brand">המקום הכי חם בגיהנום</div>
+  </header>
+  <div id="map"></div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('open')">
+  <img id="lb-img" alt="">
+  <div class="lb-fname" id="lb-fname"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="boundaries.js"></script>
+<script src="councils.js"></script>
+<script src="state-land.js"></script>
+<script src="roads.js"></script>
+<script>
+// זיהוי מצב הטמעה ב-iframe — מחליף אוטומטית לגרסה קומפקטית
+if (window.self !== window.top) {
+  document.body.classList.add('embedded');
+}
+</script>
+<script>
+/* =========================================================
+   תוכן לכל נקודה — ערוך כאן
+   image: URL או שם קובץ בתיקיית images/
+   caption: כיתוב לתמונה
+   text: מערך של פסקאות (מחרוזות)
+   credit: קרדיט תחתון
+   ========================================================= */
+const CONTENT = {
+  "צומת תפוח":   { image: "images/IMG-20260413-WA0024.jpg", caption: "פסטיבל בקעה ירוקה", text: ["פסטיבל בקעה ירוקה — שלט פרסומי של אירוע תיירותי-התיישבותי בבקעת הירדן."], credit: "" },
+  "קרני שומרון": { image: "images/IMG-20260413-WA0033.jpg", caption: "פסטיבל בקעה ירוקה", text: ["אותו שלט של פסטיבל בקעה ירוקה — מוצב גם בכניסה לקרני שומרון."], credit: "" },
+  "צומת שילה":   { image: "images/IMG-20260405-WA0082.jpg", caption: "רדיפת המתיישבים חזרה", text: ["\"רדיפת המתיישבים חזרה: הרס בשבתות ומעצר רועי צאן\"", "\"ישראל כ״ץ, בלוט לא סופר אותך\""], credit: "" },
+  "תל שילה":     { image: "images/WhatsApp Image 2026-04-03 at 16.01.34.jpeg", caption: "רדיפת המתיישבים חזרה", text: ["אותו שלט נגד ישראל כ״ץ — מוצב גם בסמוך לתל שילה."], credit: "" },
+  "נופי נחמיה":  { image: "images/WhatsApp Image 2026-04-03 at 16.04.40.jpeg", caption: "כאן הבית שלך", text: ["\"כאן הבית שלך. בנות ובני השומרון — אתם לפני הכל\"", "שלט פרסומי של חברת OFEK — \"כאן עבדת עם החבר׳ה בבור מים\" *9923"], credit: "" },
+  "מסוף אריאל":  { image: "images/WhatsApp Image 2026-04-03 at 16.07.37.jpeg", caption: "لا مستقبل بفلسطين", text: ["\"لا مستقبل بفلسطين\" — \"אין עתיד בפלסטין\" בערבית, לצד תמונות של עקורים מעזה."], credit: "" },
+  "צומת רחלים":  { image: "images/WhatsApp Image 2026-04-03 at 16.12.54.jpeg", caption: "חוזרים לקבר יוסף", text: ["שלט דו-צדדי: \"חוזרים לקבר יוסף ומנצחים את הטרור\" / \"נשמור את קבר יוסף ונברח מהטרור\""], credit: "" },
+  "אביתר":       { image: "images/WhatsApp Image 2026-04-03 at 16.12.54 (1).jpeg", caption: "בטל את החוק הגזעני", text: ["\"שר הביטחון בני גנץ — בטל את החוק הגזעני!\"", "\"אפשר ליהודים לרכוש קרקעות ביו״ש!\""], credit: "" },
+  "רנתיס":       { image: "images/signal-2026-04-09-13-54-26-592.jpg", caption: "מצדיעים לנוער הגבעות", text: ["\"תושבי השומרון מצדיעים לנוער הגבעות — מרפים את החומוס בנויות ההתיישבות!\""], credit: "" },
+  "מצפה יריחו":  { image: "images/signal-2026-04-09-13-55-04-941.jpg", caption: "ציר 60 — פרסום חוצות", text: ["\"ציר 60 — פרסום חוצות\" 058-4606071 — שלט של חברת הפרסום עצמה, שמשווקת את מתקני השילוט בציר."], credit: "" },
+  "כוכב השחר":   { image: "images/signal-2026-04-09-13-57-25-321.jpg", caption: "מצדיעים לנוער הגבעות", text: ["\"תושבי השומרון מצדיעים לנוער הגבעות\" — אותו שלט כמו ברנתיס, מוצב גם ליד כוכב השחר."], credit: "" },
+  "מגדלים":      { image: "images/signal-2026-04-09-13-57-41-341.jpg", caption: "Nobel Prize for Trump", text: ["שלט באנגלית עם תמונות נתניהו וטראמפ: \"The Shomron nominates you for a Nobel Prize\""], credit: "" },
+  "חוות גלעד":   { image: "images/signal-2026-04-09-13-57-52-457.jpg", caption: "Nobel Prize for Trump", text: ["אותו שלט נובל — מוצב גם ליד חוות גלעד."], credit: "" },
+  "יפית":        { image: "images/אין עתיד בפלסטין.jpg", caption: "אין עתיד בפלסטין", text: ["\"لا مستقبل بفلسطين\" — \"אין עתיד בפלסטין\". שלט בערבית עם תמונות עקורים מעזה, מוצב בבקעת הירדן."], credit: "" },
+  "מחולה":       { image: "images/מבטלים את אוסלו ברגליים.jpg", caption: "מבטלים את אוסלו ברגליים", text: ["\"ההתיישבות השפויה A+B — מבטלים את אוסלו ברגליים!\""], credit: "" },
+  "נילי": { image: "", caption: "", text: [], credit: "" },
+  "כיכר פדואל": { image: "", caption: "", text: [], credit: "" },
+  "מגרון": { image: "", caption: "", text: [], credit: "" },
+  "קרית ארבע": { image: "", caption: "", text: [], credit: "" },
+  "עפרה": { image: "", caption: "", text: [], credit: "" },
+  "איתמר": { image: "", caption: "", text: [], credit: "" },
+  "רבבה": { image: "", caption: "", text: [], credit: "" },
+  "ברוכין": { image: "", caption: "", text: [], credit: "" },
+  'כיכר החטיבה, בה"ד 3': { image: "", caption: "", text: [], credit: "" },
+  "שחרית, כביש 5": { image: "", caption: "", text: [], credit: "" },
+  "גבעת סלעית": { image: "", caption: "", text: [], credit: "" }
+};
+
+const POINTS = [
+  { name: "צומת תפוח", lat: 32.1251378, lng: 35.2461033 },
+  { name: "קרני שומרון", lat: 32.1775829, lng: 35.0815036 },
+  { name: "צומת שילה", lat: 32.0496684, lng: 35.2895811 },
+  { name: "תל שילה", lat: 32.0543677, lng: 35.2877648 },
+  { name: "נופי נחמיה", lat: 32.0961811, lng: 35.2357669 },
+  { name: "מסוף אריאל", lat: 32.0991701, lng: 35.2426725 },
+  { name: "צומת רחלים", lat: 32.0999972, lng: 35.2464168 },
+  { name: "אביתר", lat: 32.1212986, lng: 35.2866669 },
+  { name: "רנתיס", lat: 32.0394235, lng: 35.0106455 },
+  { name: "מצפה יריחו", lat: 31.8213489, lng: 35.3881888 },
+  { name: "כוכב השחר", lat: 31.9570735, lng: 35.3381772 },
+  { name: "מגדלים", lat: 32.0918475, lng: 35.3479477 },
+  { name: "חוות גלעד", lat: 32.1972792, lng: 35.1852447 },
+  { name: "יפית", lat: 32.0591591, lng: 35.477007 },
+  { name: "מחולה", lat: 32.3671699, lng: 35.5174494 },
+  { name: "נילי", lat: 31.9667803, lng: 35.043207 },
+  { name: "כיכר פדואל", lat: 32.0668237, lng: 35.0637428 },
+  { name: "מגרון", lat: 31.8760177, lng: 35.2651054 },
+  { name: "קרית ארבע", lat: 31.5316671, lng: 35.1294105 },
+  { name: "עפרה", lat: 31.9508407, lng: 35.2572406 },
+  { name: "איתמר", lat: 32.181248, lng: 35.3078349 },
+  { name: "רבבה", lat: 32.1226899, lng: 35.1304933 },
+  { name: "ברוכין", lat: 32.079219, lng: 35.0949692 },
+  { name: 'כיכר החטיבה, בה"ד 3', lat: 32.1757998, lng: 35.2717729 },
+  { name: "שחרית, כביש 5", lat: 32.1012566, lng: 35.0642442 },
+  { name: "גבעת סלעית", lat: 32.3626394, lng: 35.5097636 }
+];
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function hasContent(name) {
+  const c = CONTENT[name];
+  return c && (c.image || (c.text && c.text.length > 0));
+}
+
+const map = L.map('map', {
+  center: [32.03, 35.22],
+  zoom: 10,
+  zoomControl: true,
+  attributionControl: true
+});
+
+// מפה סכמטית — בלי טיילס ריאליסטיים. שכבות צבע מובחנות לישראל וליהודה ושומרון.
+map.attributionControl.addAttribution('גבולות: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>');
+
+// ישראל — אפור שטוח, רקע שקט
+L.geoJSON(ISRAEL_GEO, {
+  style: {
+    color: '#8a8378',
+    weight: 1,
+    fillColor: '#cfc8bc',
+    fillOpacity: 1,
+    interactive: false
+  }
+}).addTo(map);
+
+// רצועת עזה — אפור כהה יותר, מובחן מישראל וגם ממפת הגדה
+if (typeof GAZA_GEO !== 'undefined') {
+  L.geoJSON(GAZA_GEO, {
+    style: {
+      color: '#6a5f54',
+      weight: 1,
+      fillColor: '#9e8e7c',
+      fillOpacity: 1,
+      interactive: false
+    }
+  }).addTo(map);
+}
+
+// יהודה ושומרון — גוון אדמתי מובחן, חצי-שקוף כדי לא להסתיר שכבות מידע מעליו
+const wbLayer = L.geoJSON(WEST_BANK_GEO, {
+  style: {
+    color: '#5a3522',
+    weight: 1.5,
+    fillColor: '#b87858',
+    fillOpacity: 0.85,
+    interactive: false,
+    className: 'wb-raised'
+  }
+}).addTo(map);
+
+// מועצות אזוריות — צבעים פסטליים בהתאם לצילום של המינהל האזרחי
+const COUNCIL_COLORS = {
+  'בנימין':       '#f5b7c0',
+  'בקעת הירדן':  '#a8e6cf',
+  'גוש עציון':   '#e89bd9',
+  'הר חברון':    '#f5c4a8',
+  'מגילות':      '#b4c0e8',
+  'שומרון':      '#bce8b4',
+  'ירושלים':     '#f0e68c'
+};
+const councilsLayer = L.geoJSON(COUNCILS_GEO, {
+  style: (f) => ({
+    color: '#141413',
+    weight: 1,
+    fillColor: COUNCIL_COLORS[f.properties.name] || '#cccccc',
+    fillOpacity: 0.8,
+    interactive: true
+  }),
+  onEachFeature: (f, l) => {
+    l.bindTooltip('מועצה אזורית ' + f.properties.name, { sticky: true, direction: 'top', className: 'tzir-council-label' });
+  }
+});
+
+// אדמות מדינה — דפוס דיאגונלי כחול-כהה
+const STATE_LAND_COLORS = {
+  'אדמות מדינה טאבו':       '#1a3a8c',
+  'אדמות מדינה אחרי 98':    '#3d6bd4',
+  'אדמות מדינה אחרי 2004':  '#7a9fe0'
+};
+const stateLandLayer = L.geoJSON(STATE_LAND_GEO, {
+  style: (f) => ({
+    color: '#0a1a4a',
+    weight: 0.5,
+    fillColor: STATE_LAND_COLORS[f.properties.TYPE_TEXT] || '#1a3a8c',
+    fillOpacity: 0.8,
+    interactive: true
+  }),
+  onEachFeature: (f, l) => {
+    l.bindTooltip(f.properties.TYPE_TEXT || 'אדמות מדינה', { sticky: true, direction: 'top', className: 'tzir-council-label' });
+  }
+});
+
+// כבישים — מ-OpenStreetMap, גוון בורדו כדי לא להתבלבל עם שטחי A/B הכהים
+const ROAD_STYLES = {
+  motorway:  { color: '#faf9f5', weight: 2.5, opacity: 0.95 },
+  trunk:     { color: '#faf9f5', weight: 2,   opacity: 0.95 },
+  primary:   { color: '#f5e8d0', weight: 1.5, opacity: 0.9 },
+  secondary: { color: '#cfc8bc', weight: 1,   opacity: 0.85 }
+};
+const roadsLayer = L.geoJSON(ROADS_GEO, {
+  style: (f) => Object.assign({ interactive: false }, ROAD_STYLES[f.properties.highway] || { color:'#4a4a48', weight: 1 })
+});
+
+// מקרא — מפורט, כולל כל מועצה וקטגוריה
+const legend = L.control({ position: 'topleft' });
+legend.onAdd = function() {
+  const div = L.DomUtil.create('div', 'wb-legend');
+  L.DomEvent.disableClickPropagation(div);
+  L.DomEvent.disableScrollPropagation(div);
+
+  function section(title) {
+    const h = document.createElement('strong');
+    h.textContent = title;
+    h.style.marginTop = '10px';
+    div.appendChild(h);
+  }
+  function row(swatchStyle, label) {
+    const r = document.createElement('div'); r.className = 'row'; r.style.marginTop = '3px';
+    const sw = document.createElement('span'); sw.className = 'swatch';
+    Object.assign(sw.style, swatchStyle);
+    r.appendChild(sw);
+    r.appendChild(document.createTextNode(label));
+    div.appendChild(r);
+  }
+  function lineRow(color, weight, label) {
+    const r = document.createElement('div'); r.className = 'row'; r.style.marginTop = '3px';
+    const sw = document.createElement('span'); sw.className = 'swatch';
+    sw.style.height = weight + 'px';
+    sw.style.background = color;
+    sw.style.border = 'none';
+    sw.style.alignSelf = 'center';
+    r.appendChild(sw);
+    r.appendChild(document.createTextNode(label));
+    div.appendChild(r);
+  }
+
+  // כותרת ראשית
+  const head = document.createElement('strong');
+  head.textContent = 'ציר 60';
+  head.style.fontSize = '13px';
+  head.style.color = '#141413';
+  head.style.marginBottom = '4px';
+  div.appendChild(head);
+
+  // רקע
+  section('רקע');
+  row({background:'#cfc8bc', border:'1px solid #8a8378'}, 'תחומי הקו הירוק');
+  row({background:'#b87858', border:'1.5px solid #5a3522'}, 'יו"ש — שטחי C');
+  row({background:'#0a0a0a', border:'1px solid #2a2a28'}, 'יו"ש — שטחי A, B');
+  row({background:'#9e8e7c', border:'1px solid #6a5f54'}, 'רצועת עזה');
+
+  // נקודות הציר
+  section('ישובי ציר 60');
+  row({background:'#f5c842', border:'2px solid #141413', borderRadius:'50%', width:'12px', height:'12px'}, 'ישוב על הציר');
+
+  // מועצות אזוריות
+  section('מועצות אזוריות');
+  Object.entries(COUNCIL_COLORS).forEach(([name, color]) => {
+    if (name === 'ירושלים') return; // אין גיאומטריה ב-FeatureService
+    row({background: color, border: '1px solid #141413'}, name);
+  });
+
+  // אדמות מדינה
+  section('אדמות מדינה');
+  Object.entries(STATE_LAND_COLORS).forEach(([name, color]) => {
+    row({background: color, border: '1px solid #0a1a4a'}, name);
+  });
+
+  // כבישים
+  section('כבישים');
+  lineRow('#faf9f5', 3, 'מהיר / ראשי');
+  lineRow('#f5e8d0', 2, 'משני');
+  lineRow('#cfc8bc', 1.5, 'אזורי');
+
+  return div;
+};
+legend.addTo(map);
+
+// פאנל שליטה בשכבות + שקיפות
+const layerPanel = L.control({ position: 'topright' });
+layerPanel.onAdd = function() {
+  const div = L.DomUtil.create('div', 'layer-panel');
+  L.DomEvent.disableClickPropagation(div);
+  L.DomEvent.disableScrollPropagation(div);
+
+  const head = document.createElement('strong'); head.textContent = 'שכבות מידע'; div.appendChild(head);
+
+  const layers = [
+    { id: 'councils',  label: 'מועצות אזוריות', layer: councilsLayer,  on: false, swatch: '#bce8b4' },
+    { id: 'stateland', label: 'אדמות מדינה',    layer: stateLandLayer, on: false, swatch: '#3d6bd4' },
+    { id: 'roads',     label: 'כבישים',         layer: roadsLayer,     on: false, swatch: '#faf9f5' }
+  ];
+
+  layers.forEach(L_ => {
+    const lbl = document.createElement('label');
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = L_.on;
+    if (L_.on) L_.layer.addTo(map);
+    cb.addEventListener('change', () => {
+      if (cb.checked) L_.layer.addTo(map); else map.removeLayer(L_.layer);
+    });
+    const sw = document.createElement('span'); sw.className = 'swatch'; sw.style.background = L_.swatch;
+    lbl.appendChild(cb); lbl.appendChild(sw); lbl.appendChild(document.createTextNode(L_.label));
+    div.appendChild(lbl);
+  });
+
+  const hr = document.createElement('hr'); div.appendChild(hr);
+
+  const op = document.createElement('div'); op.className = 'opacity-row';
+  const opHead = document.createElement('div'); opHead.className = 'opacity-head';
+  const opLabel = document.createElement('span'); opLabel.textContent = 'שקיפות שכבות';
+  const opVal = document.createElement('span'); opVal.textContent = '80%';
+  opHead.appendChild(opLabel); opHead.appendChild(opVal);
+  const slider = document.createElement('input');
+  slider.type = 'range'; slider.min = '0'; slider.max = '100'; slider.value = '80';
+  slider.addEventListener('input', () => {
+    const v = parseInt(slider.value, 10) / 100;
+    opVal.textContent = slider.value + '%';
+    councilsLayer.setStyle((f) => ({ fillOpacity: v }));
+    stateLandLayer.setStyle((f) => ({ fillOpacity: v }));
+  });
+  op.appendChild(opHead); op.appendChild(slider);
+  div.appendChild(op);
+
+  return div;
+};
+layerPanel.addTo(map);
+
+const markers = {};
+
+POINTS.forEach((p) => {
+  const markerDiv = document.createElement('div');
+  markerDiv.className = 'tzir-marker';
+  markerDiv.dataset.name = p.name;
+  const icon = L.divIcon({
+    className: '',
+    html: markerDiv.outerHTML,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9]
+  });
+  const m = L.marker([p.lat, p.lng], { icon }).addTo(map);
+  m.bindTooltip(p.name, {
+    permanent: true,
+    direction: 'left',
+    offset: [-10, 0],
+    className: 'tzir-label'
+  });
+  m.bindPopup(() => buildPopupHtml(p.name), {
+    maxWidth: 340,
+    minWidth: 320,
+    closeButton: true,
+    autoPan: true,
+    offset: [0, -4]
+  });
+  m.on('popupopen', () => {
+    document.querySelectorAll('.tzir-marker').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tzir-marker').forEach(el => { if (el.dataset.name === p.name) el.classList.add('active'); });
+    document.querySelectorAll('#points-ul li').forEach(el => el.classList.toggle('active', el.dataset.name === p.name));
+  });
+  markers[p.name] = m;
+});
+
+function buildPopupHtml(name) {
+  const c = CONTENT[name] || {};
+  const hasImg = !!c.image;
+  const hasText = c.text && c.text.length > 0;
+  const wrap = document.createElement('div');
+  wrap.className = 'popup-card';
+
+  if (hasImg) {
+    const img = document.createElement('div');
+    img.className = 'pc-image';
+    const encoded = c.image.split('/').map(encodeURIComponent).join('/');
+    img.style.backgroundImage = `url("${encoded.replace(/"/g,'\\"')}")`;
+    img.style.cursor = 'zoom-in';
+    img.addEventListener('click', () => {
+      const lb = document.getElementById('lightbox');
+      const lbImg = document.getElementById('lb-img');
+      const lbName = document.getElementById('lb-fname');
+      lbImg.src = encoded;
+      if (lbName) lbName.textContent = c.caption || name;
+      lb.classList.add('open');
+    });
+    wrap.appendChild(img);
+  } else {
+    const ph = document.createElement('div');
+    ph.className = 'pc-image-ph';
+    ph.textContent = 'תמונה — טרם הועלתה';
+    wrap.appendChild(ph);
+  }
+
+  const body = document.createElement('div');
+  body.className = 'pc-body';
+
+  const kicker = document.createElement('div');
+  kicker.className = 'pc-kicker';
+  kicker.textContent = 'נקודת שילוט';
+  body.appendChild(kicker);
+
+  const title = document.createElement('div');
+  title.className = 'pc-title';
+  title.textContent = name;
+  body.appendChild(title);
+
+  if (c.caption) {
+    const cap = document.createElement('div');
+    cap.className = 'pc-caption';
+    cap.textContent = c.caption;
+    body.appendChild(cap);
+  }
+
+  if (hasText) {
+    c.text.forEach(par => {
+      const p = document.createElement('div');
+      p.className = 'pc-text';
+      p.textContent = par;
+      body.appendChild(p);
+    });
+  } else {
+    const ph = document.createElement('div');
+    ph.className = 'pc-text ph';
+    ph.textContent = 'טקסט טרם נכתב.';
+    body.appendChild(ph);
+  }
+
+  if (c.credit) {
+    const credit = document.createElement('div');
+    credit.className = 'pc-credit';
+    credit.textContent = c.credit;
+    body.appendChild(credit);
+  }
+
+  wrap.appendChild(body);
+  return wrap;
+}
+
+const bounds = L.latLngBounds(POINTS.map(p => [p.lat, p.lng]));
+map.fitBounds(bounds, { padding: [60, 60] });
+</script>
+</body>
+</html>

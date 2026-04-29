@@ -1,0 +1,8 @@
+.DS_Store
+.claude/
+node_modules/
+
+# גיאוג׳ייסונים גולמיים מה-FeatureService — לא בשימוש בזמן ריצה
+regional-councils.geojson
+state-land.geojson
+roads.geojson
