@@ -72,6 +72,52 @@ body.embedded .page-header .brand { display: none; }
   .page-header .brand { display: none; }
   .page-title { font-size: 24px; }
   .page-subtitle { font-size: 13px; }
+
+  /* כל הקונטרולים מתקפלים על מובייל */
+  .wb-legend,
+  .layer-panel {
+    padding: 8px 12px;
+    font-size: 12px;
+    min-width: 0;
+    max-width: 200px;
+  }
+  .wb-legend > *:not(.legend-toggle),
+  .layer-panel > *:not(.legend-toggle) { display: none !important; }
+  .wb-legend.expanded { max-height: 65vh; max-width: 220px; overflow-y: auto; }
+  .wb-legend.expanded > * { display: block; }
+  .wb-legend.expanded > .row { display: flex !important; }
+  .layer-panel.expanded { max-width: 220px; }
+  .layer-panel.expanded > * { display: block; }
+  .layer-panel.expanded > label { display: flex !important; }
+  .layer-panel.expanded > .opacity-row { display: flex !important; }
+
+  /* הכפתור עצמו */
+  .legend-toggle {
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #141413;
+    text-transform: uppercase;
+    margin: 0;
+    padding: 0;
+  }
+  .legend-toggle::after {
+    content: '▾';
+    font-size: 10px;
+    opacity: 0.6;
+    margin-right: auto;
+  }
+  .expanded > .legend-toggle::after { content: '▴'; }
+
+  /* פאנל השכבות יורד למטה במובייל ולא חוסם את המפה */
+  .leaflet-top.leaflet-right .layer-panel-wrap {
+    /* Leaflet ממקם את האב — אין הרבה מה לעשות בלי JS */
+  }
 }
 
 #map {
@@ -706,6 +752,14 @@ legend.onAdd = function() {
     div.appendChild(r);
   }
 
+  // כפתור-מתקפל למובייל (תמיד נוצר; מוסתר ב-CSS על דסקטופ)
+  const toggle = document.createElement('div');
+  toggle.className = 'legend-toggle';
+  toggle.textContent = 'מקרא';
+  toggle.style.display = 'none'; // CSS יעקוף במובייל
+  toggle.addEventListener('click', () => div.classList.toggle('expanded'));
+  div.appendChild(toggle);
+
   // כותרת ראשית
   const head = document.createElement('strong');
   head.textContent = 'ציר 60';
@@ -748,12 +802,21 @@ legend.onAdd = function() {
 };
 legend.addTo(map);
 
-// פאנל שליטה בשכבות + שקיפות
-const layerPanel = L.control({ position: 'topright' });
+// פאנל שליטה בשכבות + שקיפות (במובייל יורד לפינה ימין-תחתית)
+const isMobile = window.matchMedia('(max-width: 700px)').matches;
+const layerPanel = L.control({ position: isMobile ? 'bottomright' : 'topright' });
 layerPanel.onAdd = function() {
   const div = L.DomUtil.create('div', 'layer-panel');
   L.DomEvent.disableClickPropagation(div);
   L.DomEvent.disableScrollPropagation(div);
+
+  // כפתור-מתקפל למובייל
+  const toggle = document.createElement('div');
+  toggle.className = 'legend-toggle';
+  toggle.textContent = 'שכבות';
+  toggle.style.display = 'none';
+  toggle.addEventListener('click', () => div.classList.toggle('expanded'));
+  div.appendChild(toggle);
 
   const head = document.createElement('strong'); head.textContent = 'שכבות מידע'; div.appendChild(head);
 
